@@ -1,0 +1,70 @@
+// --- Definición de Pines ---
+const int ENA = 25;       // Pin PWM para la velocidad (L298N)
+const int IN1 = 26;       // Dirección 1 (L298N)
+const int IN2 = 27;       // Dirección 2 (L298N)
+const int potPin = 34;    // Pin analógico del potenciómetro
+
+// --- Pines del Encoder ---
+const int encoderPinA = 32; // Canal A del encoder (con interrupción)
+
+// --- Variables de Control ---
+volatile long encoderCount = 0; // 'volatile' porque cambia dentro de la interrupción
+unsigned long lastTime = 0;
+const int interval = 100;       // Intervalo para mostrar datos en milisegundos
+
+// Función de interrupción que se ejecuta cada vez que el encoder detecta un pulso
+void IRAM_ATTR countEncoder() {
+  encoderCount++;
+}
+
+void setup() {
+  // Configurar pines del motor
+  pinMode(ENA, OUTPUT);
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  
+  // Configurar pin del potenciómetro
+  pinMode(potPin, INPUT);
+
+  // Configurar pin del encoder con resistencia pull-up interna
+  pinMode(encoderPinA, INPUT_PULLUP);
+  
+  // Asociar la interrupción al pin del encoder (flanco de subida)
+  attachInterrupt(digitalPinToInterrupt(encoderPinA), countEncoder, RISING);
+
+  // Iniciar comunicación Serial
+  Serial.begin(115200);
+
+  // Establecer dirección de giro inicial (hacia adelante)
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+}
+
+void loop() {
+  // 1. Leer el potenciómetro (0 a 4095 en el ESP32)
+  int potValue = analogRead(potPin);
+
+  // 2. Mapear el valor al rango de PWM del motor (0 a 255)
+  int pwmValue = map(potValue, 0, 4095, 0, 255);
+
+  // 3. Aplicar la velocidad al motor
+  analogWrite(ENA, pwmValue);
+
+  // 4. Mostrar datos en el Monitor Serial de forma fluida cada 100ms
+  unsigned long currentTime = millis();
+  if (currentTime - lastTime >= interval) {
+    lastTime = currentTime;
+
+    // Copiar el valor de los pulsos de forma segura
+    noInterrupts();
+    long currentPulses = encoderCount;
+    interrupts();
+
+    Serial.print("Pot: ");
+    Serial.print(potValue);
+    Serial.print(" | PWM: ");
+    Serial.print(pwmValue);
+    Serial.print(" | Pulsos Encoder: ");
+    Serial.println(currentPulses);
+  }
+}
