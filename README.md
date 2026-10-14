@@ -12,4 +12,5 @@
 ### Placa expansora para conexiones
 ### Jumpers, cable tipo C
 ### Voltímetro
-### Bracket para base de motor y 
+### Bracket para base de motor y pendulo
+### Reloj
