@@ -1,0 +1,127 @@
+const int ENA = 25;       // Pin PWM para la velocidad (L298N)
+const int IN1 = 26;       // Dirección 1 (L298N)
+const int IN2 = 27;       // Dirección 2 (L298N)
+const int potPin = 34;    // Pin analógico del potenciómetro (define el objetivo)
+
+// --- Pines del Encoder ---
+const int encoderPinA = 32; // Canal A del encoder (con interrupción)
+
+// --- Variables de Control ---
+volatile long encoderCount = 0; // Posición actual medida por el encoder
+
+// Función de interrupción para contar los pulsos
+void IRAM_ATTR countEncoder() {
+  encoderCount++;
+}
+
+void setup() {
+  pinMode(ENA, OUTPUT);
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(potPin, INPUT);
+  
+  pinMode(encoderPinA, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(encoderPinA), countEncoder, RISING);
+
+  Serial.begin(115200);
+}
+
+void loop() {
+  // 1. Leer el potenciómetro (0 - 4095) y mapearlo a una posición objetivo en pulsos.
+  // Puedes cambiar el límite superior (ej. 500) según cuántas vueltas quieras que dé tu motor.
+  int potValue = analogRead(potPin);
+  long targetPosition = map(potValue, 0, 4095, 0, 500); 
+
+  // 2. Obtener la posición actual del motor de forma segura
+  noInterrupts();
+  long currentPosition = encoderCount;
+  interrupts();
+
+  // 3. Calcular el error (distancia que falta por recorrer)
+  long error = targetPosition - currentPosition;
+const int ENA = 25;       // Pin PWM para la velocidad (L298N)
+const int IN1 = 26;       // Dirección 1 (L298N)
+const int IN2 = 27;       // Dirección 2 (L298N)
+const int potPin = 34;    // Pin analógico del potenciómetro
+
+// --- Pines del Encoder ---
+const int encoderPinA = 32; // Canal A (con interrupción)
+const int encoderPinB = 33; // Canal B (para detectar la dirección)
+
+// --- Variables de Control ---
+volatile long encoderCount = 0; // Posición actual medida por el encoder
+
+// Interrupción en Cuadratura: detecta si el giro es horario o antihorario
+void IRAM_ATTR countEncoder() {
+  if (digitalRead(encoderPinB) == HIGH) {
+    encoderCount++;
+  } else {
+    encoderCount--;
+  }
+}
+
+void setup() {
+  pinMode(ENA, OUTPUT);
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(potPin, INPUT);
+  
+  pinMode(encoderPinA, INPUT_PULLUP);
+  pinMode(encoderPinB, INPUT_PULLUP);
+  
+  attachInterrupt(digitalPinToInterrupt(encoderPinA), countEncoder, RISING);
+
+  Serial.begin(115200);
+}
+
+void loop() {
+  // 1. Leer potenciómetro (0 - 4095) y mapear a la posición objetivo en pulsos
+  int potValue = analogRead(potPin);
+  long targetPosition = map(potValue, 0, 4095, 0, 500); 
+
+  // 2. Obtener posición actual de forma segura (desactivando interrupciones brevemente)
+  noInterrupts();
+  long currentPosition = encoderCount;
+  interrupts();
+
+  // 3. Calcular el error (distancia faltante al objetivo)
+  long error = targetPosition - currentPosition;
+
+  // 4. Control Proporcional (Kp = 4)
+  int Kp = 4;
+  int pwmValue = abs(error) * Kp;
+  pwmValue = constrain(pwmValue, 0, 255); // Limitar al rango válido de PWM (0-255)
+
+  // 5. Lógica de control de dirección y zona muerta
+  if (abs(error) <= 3) {
+    // Si llegamos a la posición deseada (margen +/- 3 pulsos), frenar motor
+    pwmValue = 0;
+    digitalWrite(IN1, LOW);
+    digitalWrite(IN2, LOW);
+  } 
+  else if (error > 0) {
+    // Giro para incrementar la posición actual hacia el objetivo
+    digitalWrite(IN1, LOW);
+    digitalWrite(IN2, HIGH);
+  } 
+  else {
+    // Giro para decrementar la posición actual hacia el objetivo
+    digitalWrite(IN1, HIGH);
+    digitalWrite(IN2, LOW);
+  }
+
+  // Aplicar potencia al driver
+  analogWrite(ENA, pwmValue);
+
+  // 6. Monitoreo en el Monitor Serie
+  Serial.print("Objetivo: ");
+  Serial.print(targetPosition);
+  Serial.print(" | Actual: ");
+  Serial.print(currentPosition);
+  Serial.print(" | Error: ");
+  Serial.print(error);
+  Serial.print(" | PWM: ");
+  Serial.println(pwmValue);
+
+  delay(15); // Pausa breve para estabilización del lazo de control
+}
